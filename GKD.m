@@ -43,14 +43,12 @@ function [varargout] = GKD(A,varargin)
 %   opts.locking            Turns hard locking on if set
 %   opts.isdouble           0 = Single Precision, 1 = Double Precision
 %   opts.LBD                1 = Start with LBD basis up to maxBasis-1
-%   opts.AtQ                1 = Keep extra storage for AtQ. Reduces Matvecs
-%                                   with locking = 0
 
 inputs = varargin;
 [m,n,transp,notransp,Transpose,numValues,target,opts,Pata] = varginParse(A,inputs);
 
 
-[ERROR,LBDflag,xtrStorage,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts);
+[ERROR,LBDflag,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts);
 if ERROR ~= 0
     for i = nargout:-1:1
         varargout{i} = [];
@@ -70,9 +68,6 @@ if isfield(opts,'isdouble') && opts.isdouble == 0
     V = single(zeros(n,maxBasis));
     Q = single(zeros(m,maxBasis));
     R = single(zeros(maxBasis,maxBasis));
-    if xtrStorage
-        AtQ = single(zeros(n,maxBasis));
-    end
 else
     if ~isa(A,'function_handle')
         A = @(x,tr) doubleA(A,x,tr);
@@ -80,9 +75,6 @@ else
     V = zeros(n,maxBasis);
     Q = zeros(m,maxBasis);
     R = zeros(maxBasis,maxBasis);
-    if xtrStorage
-        AtQ = zeros(n,maxBasis);
-    end
     macheps = eps;
 end
 
@@ -127,9 +119,6 @@ end
 while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     tempQ = Q(:,1:k);
     tempV = V(:,1:k);
-    if xtrStorage
-        tempAtQ = AtQ(:,1:k);
-    end
     cflag = 0; %Convergence flag
     
     % Extraction process
@@ -142,12 +131,7 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     vrold = vr(:,index(t:(min(size(vr,2),numOld))+t-1));
     
     %Calculate left residual
-    %ru = A(u,transp) - sigma*v; mvs = mvs + 1;
-    if xtrStorage
-        ru = tempAtQ*ur(:,index(t)) - sigma*v;
-    else
-        ru = A(u,transp) - sigma*v; mvs = mvs+1;
-    end
+    ru = A(u,transp) - sigma*v; mvs = mvs + 1;
     run = norm(ru);
     
     outerits = outerits+1;
@@ -201,13 +185,8 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
             u = tempQ*ur(:,index(t));
             v = tempV*vr(:,index(t));
             vrold = vr(:,index(t:(min(size(vr,2),numOld))+t-1));
-            if xtrStorage
-                ru = tempAtQ*ur(:,index(t)) - sigma*v;
-            else
-                ru = A(u,transp) - sigma*v; mvs = mvs+1;
-            end
-            run = norm(ru);
-           
+            ru = A(u,transp) - sigma*v; mvs = mvs+1;
+            run = norm(ru);     
         end
         
         if HLock
@@ -228,11 +207,7 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
                 endS = sr(index(1:t-1),index(1:t-1));
                 for endi = 1:t-1
                     endRv = norm(A(endV(:,endi),notransp) - endS(endi,endi)*endQ(:,endi));
-                    if xtrStorage
-                        endRu = norm(tempAtQ*ur(:,index(endi)) - endS(endi,endi)*endV(:,endi));
-                    else
-                        endRu = norm(A(endQ(:,endi),transp) - endS(endi,endi)*endV(:,endi));
-                    end
+                    endRu = norm(A(endQ(:,endi),transp) - endS(endi,endi)*endV(:,endi));
                     endR(endi) = sqrt(endRv^2 + endRu^2);
                     if endR(endi) > tol
                         t = endi;
@@ -283,10 +258,6 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
         [Q(:,k+1),R(1:k+1,k+1)] = cgs(tempQ,Q(:,k+1));
     end
     
-    if xtrStorage
-        AtQ(:,k+1) = A(Q(:,k+1),transp); mvs = mvs + 1;
-    end
-    
     % Increase current basis size
     k = k + 1;
     
@@ -313,15 +284,6 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
         [~,index] = sort(abs(target - diag(sr)));
         y1 = vr(:,index(1:minRS));
         
-        %{
-        for itr = 1:t-1
-            if sr(index(itr),index(itr)) - stored_sigma(itr) > tol
-                t = itr;
-                disp('Avoiding misconvergence')
-            end
-        end
-        %}
-        
         if numOld ~= 0
             yold = cgs(y1, [vrold(:,1:numOld);zeros(1,numOld)]);
             thickright = [y1 yold];
@@ -337,9 +299,6 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
             V(:,1:k) = cgs(LV,V(:,1:k));
             Q(:,1:k) = A(V(:,1:k),notransp); mvs = mvs+k;
             [Q(:,1:k),R(1:k,1:k)] = qr(Q(:,1:k),0);
-            if xtrStorage
-                AtQ(:,1:k) = A(Q(:,1:k),transp); mvs = mvs+k;
-            end
             reset = 0;
         else
             y2 = vr(:,index(minRS+1:end));
@@ -360,9 +319,6 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
             end
             
             Q(:,1:k) = Q(:,1:oldk)*Qtilde;
-            if xtrStorage
-                AtQ(:,1:k) = AtQ(:,1:oldk)*Qtilde;
-            end
         end
         
     end %restart/reset procedure
