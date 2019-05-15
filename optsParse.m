@@ -1,4 +1,4 @@
-function [ERROR,LBDflag,xtrStorage,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts)
+function [ERROR,LBDflag,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts)
 ERROR = 0;
 optionnames = {'tol','maxBasis','aNorm','maxMV','v0','disp','minRS','numPk',...
     'maxII','seed','locking','isdouble','LBD','AtQ'};
@@ -35,12 +35,6 @@ if isfield(opts,'LBD')
     LBDflag = opts.LBD;
 else
     LBDflag = 0;
-end
-
-if isfield(opts,'AtQ')
-    xtrStorage = opts.AtQ;
-else
-    xtrStorage = 0;
 end
 
 if isfield(opts,'tol')
