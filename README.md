@@ -38,11 +38,13 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     Pata          preconditioner for A'*A
 
 #### Options for GKD
+In otder to give the user better control of the algorithm, the following
+options can be provided through the opts structure: 
 
-| Variable Name | Description                           | Default       |
-| ------------- | ------------------------------------- | ------------- |
-| tol           | residual norm tolerance               | \|\|A\|\|*1e-13 |
-| maxBasis      |     max number of basis vectors in V, U |  35         |
+| Field Name      | Description                                             | Default       |
+| -------------   | -------------------------------------                   | ------------- |
+| tol             |      residual norm tolerance                            | \|\|A\|\|*1e-13 |
+| maxBasis        |      max number of basis vectors in V, U                |  35         |
 |    aNorm        |      norm(A) estimate                                   |     1    |
 |    maxMV        |      maximum number of matrix-vector multiplications    |     Inf    |
 |    v0           |      initial vector for V                               | randn(size(A,2),1) |
