@@ -38,19 +38,19 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     Pata          preconditioner for A'*A
 
 #### Options for GKD
-  
-    opts.tol                residual norm tolerance  
-    opts.maxBasis           max number of basis vectors in V, U  
-    opts.aNorm              norm(A) estimate 
-    opts.maxMV              maximum number of matrix-vector multiplications  
-    opts.v0                 initial vector for V 
-    opts.disp               options for printing history to console  
-    opts.minRS              number of vectors to maintain after restart  
-    opts.numPk              +k criteria  
-    opts.maxII              maximum number of inner solver iterations  
-    opts.seed               Sets seed for the random number generator  
-    opts.locking            Turns hard locking on if set 
-    opts.isdouble           0 = Single Precision, 1 = Double Precision 
-    opts.LBD                1 = Start with LBD basis up to maxBasis-1  
-    opts.AtQ                1 = Keep extra storage for AtQ. Reduces Matvecs  
-                              with locking = 0  
+
+| Variable Name | Description                           | Default       |
+| ------------- | ------------------------------------- | ------------- |
+| tol           | residual norm tolerance               | \|\|A\|\|*1e-13 |
+| maxBasis      |     max number of basis vectors in V, U |  35         |
+|    aNorm        |      norm(A) estimate                                   |     1    |
+|    maxMV        |      maximum number of matrix-vector multiplications    |     Inf    |
+|    v0           |      initial vector for V                               | randn(size(A,2),1) |
+|    disp         |      options for printing history to console            | 0         |
+|    minRS        |      number of vectors to maintain after restart        | floor(0.4*maxBasis + 1)         |
+|    numPk        |      +k criteria                                        |    1      |
+|    maxII        |      maximum number of inner solver iterations          |     0     |
+|    seed         |      Sets seed for the random number generator          |     None     |
+|    locking      |      Turns hard locking on if set                       |     0     |
+|    isdouble     |      0 = Single Precision, 1 = Double Precision         |     1     |
+|    LBD          |      1 = Start with LBD basis up to maxBasis-1          |     0     |
