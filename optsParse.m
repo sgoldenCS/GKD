@@ -40,7 +40,11 @@ end
 if isfield(opts,'tol')
     tol = opts.tol*normA;
 else
-    tol = normA*1e-13;
+    if isfield(opts,'isdouble') && opts.isdouble == 0
+        tol = normA*eps('single')*1e3;
+    else
+        tol = normA*eps*1e3;
+    end
 end
 
 if isfield(opts,'maxBasis')
