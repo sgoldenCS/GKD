@@ -41,9 +41,9 @@ else
     target = inf;
 end
 if ischar(target)
-    if strcmp(target,'L')
+    if strcmpi(target,'L')
         target = inf;
-    elseif strcmp(target,'S')
+    elseif strcmpi(target,'S')
         target = 0;
     end
 end
