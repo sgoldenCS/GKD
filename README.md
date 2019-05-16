@@ -38,7 +38,7 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     Pata          preconditioner for A'*A
 
 #### Options for GKD
-In otder to give the user better control of the algorithm, the following
+In order to give the user better control of the algorithm, the following
 options can be provided through the opts structure: 
 
 | Field Name      | Description                                             | Default       |
