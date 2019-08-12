@@ -1,7 +1,7 @@
-function [ERROR,LBDflag,xtrStorage,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts)
+function [ERROR,LBDflag,BlS,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts)
 ERROR = 0;
 optionnames = {'tol','maxBasis','aNorm','maxMV','v0','disp','minRS','numPk',...
-    'maxII','seed','locking','isdouble','LBD','AtQ'};
+    'maxII','seed','locking','LBD','BlockSize'};
 if isempty(opts)
     names = [];
 else
@@ -37,10 +37,10 @@ else
     LBDflag = 0;
 end
 
-if isfield(opts,'AtQ')
-    xtrStorage = opts.AtQ;
+if isfield(opts,'BlockSize')
+    BlS = opts.BlockSize;
 else
-    xtrStorage = 0;
+    BlS = 1;
 end
 
 if isfield(opts,'tol')
@@ -54,6 +54,7 @@ if isfield(opts,'maxBasis')
 else
     maxBasis = 35;
 end
+maxBasis = floor(maxBasis/BlS)*BlS;
 
 if isfield(opts,'maxMV')
     maxMVs = opts.maxMV;
@@ -64,7 +65,7 @@ end
 if isfield(opts,'v0')
     v0 = opts.v0;
 else
-    v0 = randn(n,1);
+    v0 = randn(n,BlS);
 end
 
 if isfield(opts,'disp')

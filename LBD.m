@@ -1,4 +1,4 @@
-function [u,B,v,atu] = LBD(A,v0,iter,tr)
+function [u,B,v] = LBD(A,v0,iter,tr)
 if tr == 1
     transp = 'notransp';
     notransp = 'transp';
@@ -6,24 +6,21 @@ else
     transp = 'transp';
     notransp = 'notransp';
 end
-v(:,1) = v0/norm(v0);
-u(:,1) = A(v(:,1),notransp);
-a(1) = norm(u(:,1));
-v(end,iter) = 0;
-u(:,1) = u(:,1)/a(1);
-u(end,iter) = 0;
-atu = zeros(size(v));
-for i = 2:iter
-    atu(:,i-1) = A(u(:,i-1),transp);
-    v(:,i) = atu(:,i-1) - a(i-1)*v(:,i-1);
-    [v(:,i),x] = cgs(v(:,1:i-1),v(:,i));
-    b(i-1) = x(end);
+BlS = size(v0,2);
+[v(:,1:BlS),~] = qr(v0,0);
+u(:,1:BlS) = A(v(:,1:BlS),notransp);
+[u(:,1:BlS), a{1}] = qr(u(:,1:BlS),0);
+v(end,iter*BlS) = 0;
+u(end,iter*BlS) = 0;
+for i = 1:iter-1
+    v(:,BlS*i+1:(i+1)*BlS) = A(u(:,(i-1)*BlS+1:BlS*i),transp) - v(:,(i-1)*BlS+1:BlS*i)*a{i};
+    [v(:,BlS*i+1:(i+1)*BlS),x] = cgs(v(:,1:BlS*i),v(:,BlS*i+1:(i+1)*BlS));
+    b{i} = x(end-BlS+1:end,end-BlS+1:end)';
     
-    u(:,i) = A(v(:,i),notransp) - b(i-1)*u(:,i-1);
-    [u(:,i),y] = cgs(u(:,1:i-1),u(:,i));
-    a(i) = y(end);
+    u(:,BlS*i+1:(i+1)*BlS) = A(v(:,BlS*i+1:(i+1)*BlS),notransp) - u(:,(i-1)*BlS+1:BlS*i)*b{i};
+    [u(:,BlS*i+1:(i+1)*BlS),y] = cgs(u(:,1:BlS*i),u(:,BlS*i+1:(i+1)*BlS));
+    a{i+1} = y(end-BlS+1:end,end-BlS+1:end);
 end
-atu(:,i) = A(u(:,i),transp);
-B = diag(a)+[zeros(iter-1,1), diag(b); zeros(1,iter)];
+B = blkdiag(a{:})+[zeros(BlS*(iter-1),BlS), blkdiag(b{:}); zeros(BlS,iter*BlS)];
 
 end
