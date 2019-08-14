@@ -111,6 +111,7 @@ end
 while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     t = find(converged == 0, BlS, 'first');
     t = t(t <= k);
+    t_size = size(t,1);
     tempQ = Q(:,1:k);
     tempV = V(:,1:k);
     cflag = 0; %Convergence flag
@@ -167,11 +168,11 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
         if sum(converged) > numValues
             LQ = tempQ*ur(:,index(1:numValues));
             LV = tempV*vr(:,index(1:numValues));
-            LS = sr(index(1:numValues),index(1:numValues));
+            LSig = sr(index(1:numValues),index(1:numValues));
             if ~noCheck
                 for endi = 1:numValues
-                    endRv = norm(A(LV(:,endi),notransp) - LS(endi,endi)*LQ(:,endi));
-                    endRu = norm(A(LQ(:,endi),transp) - LS(endi,endi)*LV(:,endi));
+                    endRv = norm(A(LV(:,endi),notransp) - LSig(endi,endi)*LQ(:,endi));
+                    endRu = norm(A(LQ(:,endi),transp) - LSig(endi,endi)*LV(:,endi));
                     endR(endi) = sqrt(endRv^2 + endRu^2);
                 end
                 indices = find(endR > tol);
@@ -189,54 +190,6 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
             end
         end
     end
-        
-        %{
-        while run < tol %Assuming rvn = 0;
-            rcf = 1;
-            cflag = 1;
-            found = found + 1;
-            t = t+1;
-            
-            %Calculate next left residual
-            sigma = sr(index(t),index(t));
-            u = tempQ*ur(:,index(t));
-            v = tempV*vr(:,index(t));
-            vrold = vr(:,index(t:(min(size(vr,2),numOld))+t-1));
-            ru = A(u,transp) - v*sigma; mvs = mvs + 1;
-            run = norm(ru);
-        end
-        
-        if t > numValues
-            endQ = tempQ*ur(:,index(1:t-1));
-            endV = tempV*vr(:,index(1:t-1));
-            endS = sr(index(1:t-1),index(1:t-1));
-            for endi = 1:t-1
-                endRv = norm(A(endV(:,endi),notransp) - endS(endi,endi)*endQ(:,endi));
-                endRu = norm(A(endQ(:,endi),transp) - endS(endi,endi)*endV(:,endi));
-                endR(endi) = sqrt(endRv^2 + endRu^2);
-                if endR(endi) > tol
-                    t = endi;
-                    found = endi -1;
-                    run = endRu;
-                    if endRu < tol
-                        reset = 1;
-                        restarts = -1;
-                        rcf = 1;
-                    end
-                    break;
-                end
-            end
-            if t-1 >= numValues
-                LQ = endQ;
-                LV = endV;
-                LSig = endS;
-                LR = endR;
-                break;
-            end
-        end
-    end
-            %}
-
     
     %%%Inner solver%%%
     
@@ -253,14 +206,14 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     end
     
     disp(run)
-    [V(:,k+1:k+size(t,1)),~] = cgs(tempV,prv);
+    [V(:,k+1:k+t_size),~] = cgs(tempV,prv);
     
-    Q(:,k+1:k+size(t,1)) = A(V(:,k+1:k+size(t,1)),notransp); mvs = mvs + 1;
+    Q(:,k+1:k+t_size) = A(V(:,k+1:k+t_size),notransp); mvs = mvs + 1;
 
-    [Q(:,k+1:k+size(t,1)),R(1:k+size(t,1),k+1:k+size(t,1))] = cgs(tempQ,Q(:,k+1:k+size(t,1)));
+    [Q(:,k+1:k+t_size),R(1:k+t_size,k+1:k+t_size)] = cgs(tempQ,Q(:,k+1:k+t_size));
     
     % Increase current basis size
-    k = k + size(t,1);
+    k = k + t_size;
     
     %%%Restart/Reset procedure%%%
     if k >= maxBasis %&& ~cflag
@@ -281,7 +234,9 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
         
         [ur,sr,vr]=svd(R(1:k,1:k));
         [~,index] = sort(abs(target - diag(sr)));
-        y1 = vr(:,index(1:minRS));
+        index1 = index(1:minRS);
+        index2 = index(minRS+1:end);
+        y1 = vr(:,index1);
         
         if numOld ~= 0
             yold = cgs(y1, [vrold(:,1:numOld);zeros(BlS,numOld)]);
@@ -300,11 +255,11 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
             [Q(:,1:k),R(1:k,1:k)] = qr(Q(:,1:k),0);
             reset = 0;
         else
-            y2 = vr(:,index(minRS+1:end));
-            w1 = ur(:,index(1:minRS));
-            w2 = ur(:,index(minRS+1:end));
-            s1 = sr(index(1:minRS),index(1:minRS));
-            s2 = sr(index(minRS+1:end),index(minRS+1:end));
+            y2 = vr(:,index2);
+            w1 = ur(:,index1);
+            w2 = ur(:,index2);
+            s1 = sr(index1,index1);
+            s2 = sr(index2,index2);
             
             if numOld ~= 0
                 x = s2*(y2'*yold);
