@@ -43,12 +43,13 @@ function [varargout] = GKD(A,varargin)
 %   opts.locking            Turns hard locking on if set
 %   opts.LBD                1 = Start with LBD basis up to maxBasis-1
 %   opts.BlockSize          Number of vectors in each block
+%   opts.noCheck            Removes double-checking of soft-locked vectors
 
 inputs = varargin;
 [m,n,transp,notransp,Transpose,numValues,target,opts,Pata] = varginParse(A,inputs);
 
 
-[ERROR,LBDflag,BlS,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts);
+[ERROR,LBDflag,BlS,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock,noCheck] = optsParse(A,m,n,opts);
 if ERROR ~= 0
     for i = nargout:-1:1
         varargout{i} = [];
@@ -80,7 +81,6 @@ restarts = 0;
 mvs = 0;     %MV Counter
 k = BlS;       %Current basis size
 outerits = 0;
-t = 1:BlS;
 touch = 1;
 sigma_prev = 0;
 sigma = 0;
@@ -165,25 +165,26 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
         converged(t(indices)) = 1;
         disp(sum(converged));
         if sum(converged) > numValues
-            endQ = tempQ*ur(:,index(1:numValues));
-            endV = tempV*vr(:,index(1:numValues));
-            endS = sr(index(1:numValues),index(1:numValues));
-            for endi = 1:numValues
-                endRv = norm(A(endV(:,endi),notransp) - endS(endi,endi)*endQ(:,endi));
-                endRu = norm(A(endQ(:,endi),transp) - endS(endi,endi)*endV(:,endi));
-                endR(endi) = sqrt(endRv^2 + endRu^2);
-            end
-            indices = find(endR > tol);
-            if any(indices)
-                converged(indices) = 0;
-                reset = 1;
-                restarts = 0;
-                rcf = 1;
+            LQ = tempQ*ur(:,index(1:numValues));
+            LV = tempV*vr(:,index(1:numValues));
+            LS = sr(index(1:numValues),index(1:numValues));
+            if ~noCheck
+                for endi = 1:numValues
+                    endRv = norm(A(LV(:,endi),notransp) - LS(endi,endi)*LQ(:,endi));
+                    endRu = norm(A(LQ(:,endi),transp) - LS(endi,endi)*LV(:,endi));
+                    endR(endi) = sqrt(endRv^2 + endRu^2);
+                end
+                indices = find(endR > tol);
+                if any(indices)
+                    converged(indices) = 0;
+                    reset = 1;
+                    restarts = 0;
+                    rcf = 1;
+                else
+                    LR = endR;
+                    break;
+                end
             else
-                LQ = endQ;
-                LV = endV;
-                LSig = endS;
-                LR = endR;
                 break;
             end
         end
@@ -236,21 +237,26 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     end
             %}
 
-    %%%Inner solver%%%
-    %{
-    shift = min(sigma*run,sigma^2-sigma_prev^2);
-    g = @(x) x - v*(v'*x);
-    f = @(x,~) g(A((A(x,notransp)),transp)-(sigma^2-shift)*x);
-    [prv,iters,touch,~] = qmrs(f,sigma*ru,target,tol,...
-        maxII,Pata,sigma^2,sigma^2-shift,touch,[]);
-    mvs = mvs+2*iters;
-    %}
-    prv = ru;
     
+    %%%Inner solver%%%
+    
+    for innerIter = 1:size(ru,2)
+            sigmaInner = sigma(innerIter,innerIter);
+            shift = sigmaInner*run(innerIter);
+            %shift = min(sigmaInner*run(innerIter),...
+            %        sigmaInner^2-sigma_prev^2);
+            g = @(x) x - v*(v'*x);
+            f = @(x,~) g(A((A(x,notransp)),transp)-(sigmaInner^2-shift)*x);
+            [prv(:,innerIter),iters,touch,~] = qmrs(f,sigmaInner*ru(:,innerIter),target,tol,...
+                maxII,Pata,sigmaInner^2,sigmaInner^2-shift,touch,[]);
+            mvs = mvs+2*iters;
+    end
+    
+    disp(run)
     [V(:,k+1:k+size(t,1)),~] = cgs(tempV,prv);
     
     Q(:,k+1:k+size(t,1)) = A(V(:,k+1:k+size(t,1)),notransp); mvs = mvs + 1;
-    
+
     [Q(:,k+1:k+size(t,1)),R(1:k+size(t,1),k+1:k+size(t,1))] = cgs(tempQ,Q(:,k+1:k+size(t,1)));
     
     % Increase current basis size
@@ -259,37 +265,23 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     %%%Restart/Reset procedure%%%
     if k >= maxBasis %&& ~cflag
         
-        %{
+        
         restarts = restarts + 1;
         rc = 4*normA*macheps*sqrt(restarts); %reset criteria
         %Check for reset
-        if rc*rcf > run
-            rvn = norm(A(v,notransp)-u*sigma); mvs = mvs + 1;
+        if any(rc*rcf > run)
+            rvn = norm(A(v,notransp)-u*sigma); mvs = mvs + size(u,2);
             rcf = rvn/(rc) * 1.22; %Modify rc to match the actual rvn
             if (rc*rcf > run)
                 reset = 1;
                 rcf = 1; %Reset convergence factor to default conservative value
                 restarts = 0;
-                if ~HLock
-                    t = 1;
-                    found = 0;
-                end
             end
         end
-        %}
         
         [ur,sr,vr]=svd(R(1:k,1:k));
         [~,index] = sort(abs(target - diag(sr)));
         y1 = vr(:,index(1:minRS));
-        
-        %{
-        for itr = 1:t-1
-            if sr(index(itr),index(itr)) - stored_sigma(itr) > tol
-                t = itr;
-                disp('Avoiding misconvergence')
-            end
-        end
-        %}
         
         if numOld ~= 0
             yold = cgs(y1, [vrold(:,1:numOld);zeros(BlS,numOld)]);
@@ -321,7 +313,7 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
                 rsize = size(s1,2)+size(r,2);
                 R(1:rsize,1:rsize) = blkdiag(s1,r);
             else
-                R(1:size(s1,2),1:size(s1,2)) = s1;
+                R(1:size(s1,1),1:size(s1,2)) = s1;
                 Qtilde = w1;
             end
             
@@ -333,7 +325,7 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
 end %while
 
 if isempty(LR)
-    LR = [LR min(hist(:,4))];
+    LR = hist{end}{4};
 end
 
 if Transpose

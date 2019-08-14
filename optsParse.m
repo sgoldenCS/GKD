@@ -1,7 +1,7 @@
-function [ERROR,LBDflag,BlS,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock] = optsParse(A,m,n,opts)
+function [ERROR,LBDflag,BlS,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock,noCheck] = optsParse(A,m,n,opts)
 ERROR = 0;
 optionnames = {'tol','maxBasis','aNorm','maxMV','v0','disp','minRS','numPk',...
-    'maxII','seed','locking','LBD','BlockSize'};
+    'maxII','seed','locking','LBD','BlockSize','noCheck'};
 if isempty(opts)
     names = [];
 else
@@ -96,5 +96,15 @@ if isfield(opts,'locking')
     HLock = opts.locking;
 else
     HLock = 0;
+end
+
+if isfield(opts,'noCheck')
+    noCheck = opts.noCheck;
+else
+    if tol > 1e-8
+        noCheck = 1;
+    else
+        noCheck = 0;
+    end
 end
 end
