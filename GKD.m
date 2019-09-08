@@ -1,33 +1,10 @@
 function [varargout] = GKD(A,varargin)
 %% GKD   Find a few singular values and vectors for large sparse matrices
-%  
-% Outputs:
 % 
-% [s] = GKD(...)
-% [s,r] = GKD(...)
-% [u,s,v] = GKD(...)
-% [u,s,v,r] = GKD(...)
-% [u,s,v,r,stats] = GKD(...)
-% [u,s,v,r,stats,hist] = GKD(...)
-%
-% u             Left Singular Vectors
-% s             Singular Values
-% v             Right Singular Vectors
-% r             norm(A'*u - s*v) for each singular triplet
-% stats         Matvecs, Time and estimated norm(A)
-% hist          Convergence History
-%
-% Inputs:
-%
-% [...] = GKD(A,numValues,target)
-% [...] = GKD(A,numValues,target,opts)
-% [...] = GKD(A,numValues,target,opts,Pata)
-%
-% A             m by n matrix
-% numValues     number of singular values to return
-% target        seek singular value nearest target
-% opts          structure containing extra solver options
-% Pata          preconditioner for A'*A
+% S = GKD(A,k,target) returns the k singular values closest to target
+% 
+% S = GKD(A,k,target,opts) configures additional options within the 
+% opts structure.
 %
 % Options for GKD
 %   opts.tol                residual norm tolerance
@@ -44,12 +21,22 @@ function [varargout] = GKD(A,varargin)
 %   opts.LBD                1 = Start with LBD basis up to maxBasis-1
 %   opts.BlockSize          Number of vectors in each block
 %   opts.noCheck            Removes double-checking of soft-locked vectors
+%
+%
+% S = GKD(A,k,target,opts,P) adds a preconditioner (for A'A)
+%
+% [U,S,V] = GKD(A,...) computes the singular vectors as well. 
+% If A is M-by-N and K singular values are computed, then U is M-by-K
+% with orthonormal columns, S is K-by-K diagonal, and V is N-by-K with
+% orthonormal columns.
+% 
+% [U,S,V,H] = GKD(A,...) also returns convergence history
 
 inputs = varargin;
 [m,n,transp,notransp,Transpose,numValues,target,opts,Pata] = varginParse(A,inputs);
 
 
-[ERROR,LBDflag,BlS,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,HLock,noCheck] = optsParse(A,m,n,opts);
+[ERROR,LBDflag,BlS,normA,tol,maxBasis,maxMVs,v0,display,minRS,numOld,maxII,noCheck] = optsParse(A,m,n,numValues,opts);
 if ERROR ~= 0
     for i = nargout:-1:1
         varargout{i} = [];
@@ -57,10 +44,9 @@ if ERROR ~= 0
     return;
 end
 
-if HLock == 0 && minRS < numValues+2
-    error('minRestartSize too small for soft-locking\n\tIncrease minRS > %d or locking = 1',numValues+2);
+if minRS < numValues+BlS
+    error('minRestartSize too small for soft-locking\n\tIncrease minRS > %d',numValues+BlS);
 end
-
 
 if ~isa(A,'function_handle')
     A = @(x,tr) doubleA(A,x,tr);
@@ -85,7 +71,7 @@ touch = 1;
 sigma_prev = 0;
 sigma = 0;
 rcf = 1; %reset criteria factor
-hist = [];
+hist = {};
 found = 0;
 converged = zeros(numValues+BlS,1);
 
@@ -117,7 +103,13 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     
     % Extraction process
     [ur,sr,vr]=svd(R(1:k,1:k));
-    [~,index] = sort(abs(target - diag(sr)));
+    if target==inf
+        index = 1:k;
+    elseif target == 0
+        index = k:-1:1;
+    else
+        [~,index] = sort(abs(target - diag(sr)));
+    end
     sigma_prev = sigma;
     sigma = sr(index(t),index(t));
     u = tempQ*ur(:,index(t));
@@ -130,32 +122,9 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     
     outerits = outerits+1;
     
-    hist{end+1} = {outerits, mvs , sigma, run, sum(converged)};
-    
-    %%% DISPLAY %%%
-    %{
-    if display == 3 %Requires an extra matvec to compute rvn
-        rv = A(v,notransp)-u*sigma;
-        rvn = vecnorm(rv);
-        resetcriteria = 4*normA*macheps*sqrt(restarts)*rcf;
-        orthv = norm(tempV'*tempV - eye(k));
-        orthq = norm(tempQ'*tempQ - eye(k));
-        fprintf('iter %4d mv %4d sig %7.3e Ru %7.3e Rv %7.3e conv %3d RCrit %7.3e ',...
-            [outerits mvs sigma run rvn found resetcriteria]);
-        fprintf('OrthV %7.3e OrthU %7.3e Restarts %4d\n', [orthv orthq restarts]);
-        if nargout >= 6
-            hist = [hist; [outerits mvs sigma run rvn found ...
-                resetcriteria orthv orthq restarts]];
-        end
-    end
-    if display == 2
-        fprintf('iter %5d mv %6d sig %7.6e Ru %7.5e conv %3d\n',...
-            [outerits mvs sigma run found]);
-    end
-    if display <= 2 && nargout >= 6
-        hist = [hist; [outerits mvs sigma run found]];
-    end
-    %}
+    hist{end+1} = {toc, outerits, mvs , sigma, run, sum(converged)};
+    fprintf('Time: %7.3f Iter: %4d Matvecs: %4d Converged: %4d Restarts: %4d\n',...
+        toc, outerits, mvs, sum(converged), restarts);
     
     indices = find(run <= tol);
 
@@ -163,8 +132,7 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
         %%%Locking procedure%%%
         cflag = 1;
         converged(t(indices)) = 1;
-        disp(sum(converged));
-        if sum(converged) > numValues
+        if sum(converged) >= numValues
             LQ = tempQ*ur(:,index(1:numValues));
             LV = tempV*vr(:,index(1:numValues));
             LS = sr(index(1:numValues),index(1:numValues));
@@ -189,62 +157,13 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
             end
         end
     end
-        
-        %{
-        while run < tol %Assuming rvn = 0;
-            rcf = 1;
-            cflag = 1;
-            found = found + 1;
-            t = t+1;
-            
-            %Calculate next left residual
-            sigma = sr(index(t),index(t));
-            u = tempQ*ur(:,index(t));
-            v = tempV*vr(:,index(t));
-            vrold = vr(:,index(t:(min(size(vr,2),numOld))+t-1));
-            ru = A(u,transp) - v*sigma; mvs = mvs + 1;
-            run = norm(ru);
-        end
-        
-        if t > numValues
-            endQ = tempQ*ur(:,index(1:t-1));
-            endV = tempV*vr(:,index(1:t-1));
-            endS = sr(index(1:t-1),index(1:t-1));
-            for endi = 1:t-1
-                endRv = norm(A(endV(:,endi),notransp) - endS(endi,endi)*endQ(:,endi));
-                endRu = norm(A(endQ(:,endi),transp) - endS(endi,endi)*endV(:,endi));
-                endR(endi) = sqrt(endRv^2 + endRu^2);
-                if endR(endi) > tol
-                    t = endi;
-                    found = endi -1;
-                    run = endRu;
-                    if endRu < tol
-                        reset = 1;
-                        restarts = -1;
-                        rcf = 1;
-                    end
-                    break;
-                end
-            end
-            if t-1 >= numValues
-                LQ = endQ;
-                LV = endV;
-                LSig = endS;
-                LR = endR;
-                break;
-            end
-        end
-    end
-            %}
 
     
     %%%Inner solver%%%
-    
+    prv = [];
     for innerIter = 1:size(ru,2)
             sigmaInner = sigma(innerIter,innerIter);
-            shift = sigmaInner*run(innerIter);
-            %shift = min(sigmaInner*run(innerIter),...
-            %        sigmaInner^2-sigma_prev^2);
+            shift = sigmaInner*run(innerIter); %use sigmaInner^2-sigma_prev^2 if smaller...
             g = @(x) x - v*(v'*x);
             f = @(x,~) g(A((A(x,notransp)),transp)-(sigmaInner^2-shift)*x);
             [prv(:,innerIter),iters,touch,~] = qmrs(f,sigmaInner*ru(:,innerIter),target,tol,...
@@ -252,7 +171,6 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
             mvs = mvs+2*iters;
     end
     
-    disp(run)
     [V(:,k+1:k+size(t,1)),~] = cgs(tempV,prv);
     
     Q(:,k+1:k+size(t,1)) = A(V(:,k+1:k+size(t,1)),notransp); mvs = mvs + 1;
@@ -264,7 +182,6 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
     
     %%%Restart/Reset procedure%%%
     if k >= maxBasis %&& ~cflag
-        
         
         restarts = restarts + 1;
         rc = 4*normA*macheps*sqrt(restarts); %reset criteria
@@ -280,7 +197,14 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
         end
         
         [ur,sr,vr]=svd(R(1:k,1:k));
-        [~,index] = sort(abs(target - diag(sr)));
+        if target == inf
+            index = 1:k;
+        elseif target == 0
+            index = k:-1:1;
+        else
+            [~,index] = sort(abs(target - diag(sr)));
+        end
+        
         y1 = vr(:,index(1:minRS));
         
         if numOld ~= 0
@@ -325,8 +249,10 @@ while (maxMVs <= 0 || mvs<maxMVs) && found < numValues
 end %while
 
 if isempty(LR)
-    LR = hist{end}{4};
+    LR = hist{end}{5};
 end
+
+hist{end+1} = {toc, outerits, mvs , sigma, LR, size(LQ,2)};
 
 if Transpose
     Temp = LQ;
@@ -337,29 +263,16 @@ end
 
 switch nargout
     case 1
-        varargout{1} = LSig;
-    case 2
-        varargout{1} = LSig;
-        varargout{2} = LR;
+        varargout{1} = LS;
+    case 3
+        varargout{1} = LQ;
+        varargout{2} = LS;
+        varargout{3} = LV;
     otherwise
         varargout{1} = LQ;
-        varargout{2} = LSig;
+        varargout{2} = LS;
         varargout{3} = LV;
-        if nargout >= 4
-            varargout{4} = LR;
-        end
-        if nargout >= 5
-            stats.numMatvecs = mvs;
-            stats.elapsedTime = toc;
-            stats.aNorm = normA;
-            varargout{5} = stats;
-        end
-        if nargout >= 6
-            varargout{6} = hist;
-        end
-        if nargout > 6
-            warning('Too many output arguments');
-        end
+        varargout{4} = hist;
 end
 
 end %function
