@@ -1,4 +1,4 @@
-function [LU,LS,LV,history] = newGKD(A,numVals,varargin)
+function [LU,LS,LV,history] = GKD(A,numVals,varargin)
 %% GKD   Find a few singular values and vectors for large sparse matrices
 %
 % [U,S,V,H] = GKD(A,numVals,target) returns numVals singular triplets
