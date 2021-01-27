@@ -1,4 +1,4 @@
-function [sol,numIts,touch,hist] = qmrs(A,r,target,epsilon,maxiter,K,eigv0,shift,touch,hist)                                                                                    
+function [sol,numIts,touch] = qmrs(A,r,epsilon,maxiter,K,eigv0,shift,touch)                                                                                    
 %% QMRS   Symmetric Quasi-Minimum-Residual (Solves A*t = -r)
 %
 % [t,k,hist] = QMRS(A,r,Etolerance,maxiter,K,eigv0,shift,hist)
@@ -133,7 +133,8 @@ while numIts < maxiter
             break;
         end
         
-        
+        %{ 
+        Not really sure what this is for....
         %looking for smallest
         if eval_updated > eval_prev && target == 0
             %disp('eval_updated > eval_prev');
@@ -149,7 +150,7 @@ while numIts < maxiter
                 %disp('abs(eigv0-eval_updated) > tau_init+eres_updated');
                 break;   
         end
-
+        %}
         
         if numIts > 1 && eres_updated < ETolerance
             %disp('ETolerance met')
