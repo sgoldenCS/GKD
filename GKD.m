@@ -1,4 +1,4 @@
-function [U,S,V,HIST,UD] = FastGKD(A,numVals,varargin)
+function [U,S,V,HIST,UD] = GKD(A,numVals,varargin)
 %% GKD   Find a few singular values and vectors for large sparse matrices
 %
 % [U,S,V,H,UD] = GKD(A,numVals) returns numVals singular triplets
