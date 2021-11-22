@@ -40,7 +40,7 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     minRestart    Number of vectors to maintain after restart
     maxBasis      max number of basis vectors in V,U
     numOld        number of +k vectors to keep after restart
-    maxII         max number of inner solver iterations
+    maxQMR        max number of inner solver iterations
     seed          random seed
     m             number of rows in A (if A is a function_handle)
     n             number of cols in A (if A is a function_handle)
@@ -62,7 +62,7 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     minRestart        numVals+max(b,15)
     maxBasis     max(minRestart+2*b,floor(1.3*minRestart))
     numOld       1
-    maxII        0
+    maxQMR       0
     seed         'shuffle' (sets rng based on current time)
     P            1 (Identity matrix)
     user_data    []
