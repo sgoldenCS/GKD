@@ -32,6 +32,7 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     stop_fn       Function used for stopping the solver
                        [done,numVals,userdata] = stop_fn(numVals,solverdata,userdata)
     maxMV         maximum number of matrix-vector multiplications
+    maxTime       maximum allowed computed time
     normA         norm(A) estimate
     display       Prints partial history to console if set
     v0            Initial vector for V
@@ -52,6 +53,7 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     target_fn    Targeting based on first values with residuals above 'tol'
     stop_fn      Stopping based on residual tolerance ('tol')
     maxMV        inf (No stopping based on matvecs)
+    maxTime      inf (No stopping based on time)
     normA        Largest value seen (Accurate when SIGMA = 'L')
     display      0 (Off)
     v0           Gaussian random vectors
