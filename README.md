@@ -8,49 +8,59 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
  
 #### Outputs:
  
-    [s] = GKD(...)
-    [s,r] = GKD(...)
-    [u,s,v] = GKD(...)
-    [u,s,v,r] = GKD(...)
-    [u,s,v,r,stats] = GKD(...)
-    [u,s,v,r,stats,hist] = GKD(...)
+    [U,S,V,H,UD] = GKD(...);
 
-
-    u             Left Singular Vectors
-    s             Singular Values
-    v             Right Singular Vectors
-    r             norm(A'*u - s*v) for each singular triplet
-    stats         Matvecs, Time and estimated norm(A)
-    hist          Convergence History
+    U             Left Singular Vectors
+    S             Singular Values
+    V             Right Singular Vectors
+    H             Convergence History
+    UD            User Data
 
 #### Inputs:
 
-    [...] = GKD(A,numValues,target)
-    [...] = GKD(A,numValues,target,opts)
-    [...] = GKD(A,numValues,target,opts,Pata)
-
+    [U,S,V,H,UD] = GKD(A,numVals,...)
+    
     A             m by n matrix
     numValues     number of singular values to return
-    target        seek singular value nearest target
-                      if target is 'L', GKD computes the largest singular values
-                      if target is 'S', GKD computes the smallest singular values
-    opts          structure containing extra solver options
-    Pata          preconditioner for A'*A
+    
+  Additional Options for GKD (Name, Value pairs)
+    
+    tol           residual norm tolerance
+    SIGMA         Sets which values are desired ('L' or 'S')
+    target_fn     Function used for expanding the basis
+                       [index,userdata] = target_fn(solverdata,userdata)
+    stop_fn       Function used for stopping the solver
+                       [done,numVals,userdata] = stop_fn(numVals,solverdata,userdata)
+    maxMV         maximum number of matrix-vector multiplications
+    maxTime       maximum allowed computed time
+    normA         norm(A) estimate
+    display       Prints partial history to console if set
+    v0            Initial vector for V
+    b             Block size
+    minRestart    Number of vectors to maintain after restart
+    maxBasis      max number of basis vectors in V,U
+    numOld        number of +k vectors to keep after restart
+    maxII         max number of inner solver iterations
+    seed          random seed
+    m             number of rows in A (if A is a function_handle)
+    n             number of cols in A (if A is a function_handle)
+    P             preconditioner for AtA
 
-#### Options for GKD
-  
-    opts.tol                residual norm tolerance  
-    opts.maxBasis           max number of basis vectors in V, U  
-    opts.aNorm              norm(A) estimate 
-    opts.maxMV              maximum number of matrix-vector multiplications  
-    opts.v0                 initial vector for V 
-    opts.disp               options for printing history to console  
-    opts.minRS              number of vectors to maintain after restart  
-    opts.numPk              +k criteria  
-    opts.maxII              maximum number of inner solver iterations  
-    opts.seed               Sets seed for the random number generator  
-    opts.locking            Turns hard locking on if set 
-    opts.isdouble           0 = Single Precision, 1 = Double Precision 
-    opts.LBD                1 = Start with LBD basis up to maxBasis-1  
-    opts.AtQ                1 = Keep extra storage for AtQ. Reduces Matvecs  
-                              with locking = 0  
+  Default Options Settings
+
+    tol          1e-6
+    SIGMA        'L' (Largest)
+    target_fn    Targeting based on first values with residuals above 'tol'
+    stop_fn      Stopping based on residual tolerance ('tol')
+    maxMV        inf (No stopping based on matvecs)
+    maxTime      inf (No stopping based on time)
+    normA        Largest value seen (Accurate when SIGMA = 'L')
+    display      0 (Off)
+    v0           Gaussian random vectors
+    b            1
+    minRestart        numVals+max(b,15)
+    maxBasis     max(minRestart+2*b,floor(1.3*minRestart))
+    numOld       1
+    maxII        0
+    seed         'shuffle' (sets rng based on current time)
+    P            1 (Identity matrix)
