@@ -189,7 +189,7 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
     if isempty(index) || done
         U = U(:,1:k)*ur(:,1:min(p.numVals,k));
         V = V(:,1:k)*vr(:,1:min(p.numVals,k));
-        S = sr(1:k);
+        S = sr(1:min(p.numVals,k));
         break;
     end
     
