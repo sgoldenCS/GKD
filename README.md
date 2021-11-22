@@ -59,8 +59,8 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     display      0 (Off)
     v0           Gaussian random vectors
     b            1
-    minRestart        numVals+max(b,15)
-    maxBasis     max(minRestart+2*b,floor(1.3*minRestart))
+    minRestart   max(7, numVals + b)
+    maxBasis     max(15, numVals + 3*b)
     numOld       1
     maxQMR       0
     seed         'shuffle' (sets rng based on current time)
