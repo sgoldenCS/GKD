@@ -45,6 +45,7 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     m             number of rows in A (if A is a function_handle)
     n             number of cols in A (if A is a function_handle)
     P             preconditioner for AtA
+    user_data     User supplied data structure for stopping/targeting
 
   Default Options Settings
 
@@ -64,3 +65,4 @@ A Golub-Kahan Davidson Method for Accurately Computing a Few Singular Triplets
     maxII        0
     seed         'shuffle' (sets rng based on current time)
     P            1 (Identity matrix)
+    user_data    []
