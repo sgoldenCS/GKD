@@ -96,11 +96,11 @@ if ~isa(p.A,'function_handle')
 end
 
 %Default Parameters for minRestart and maxBasis
-if p.minRestart == -1
+if p.minRestart < p.numVals
     p.minRestart = max(7,p.numVals+p.b);
 end
 
-if p.maxBasis == -1
+if p.maxBasis < p.minRestart
     p.maxBasis = max(15,p.numVals+3*p.b);
 end
 
