@@ -136,7 +136,7 @@ mvp = 0;            %MV Counter
 outerits = 0;       %Iteration Counter
 touch = 1;          %Used for QMR Convergence Criterion
 rcf = 1;            %Reset criteria factor
-done = 0;           %Completion flag
+HIST = [];          %Convergence History 
 
 allrun = inf(p.maxBasis,1);   %Storage for Residual Norms
 
@@ -182,7 +182,7 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
         fprintf('Time: %7.3f Iter: %4d Matvecs: %4d Restarts: %4d Num Conv: %4d Min Unconverged Resid: %7.3e\n',...
             toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol)));
     end
-    
+    HIST = [HIST; toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))];
     solver_data.rn = allrun;
     [done,p.numVals,p.user_data] = p.stop_fn(p.numVals,solver_data,p.user_data);
     
@@ -251,7 +251,6 @@ if strcmp(transp,'notransp')
 end
 
 UD = p.user_data;
-HIST = [];
 
 end
 
@@ -285,7 +284,7 @@ r = sd.rn(1:min(sd.numVals,sd.k));
 r(r > sd.normA) = sd.normA;
 % If tolerance has been met for all sd.numVals, return empty index
 % to stop the solver
-if r(1:sd.numVals) < sd.tol*sd.normA
+if length(r) > sd.numVals && all(r(1:sd.numVals) < sd.tol*sd.normA)
     index = [];
     return
 end
