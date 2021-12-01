@@ -22,10 +22,10 @@ function [U,S,V,HIST,UD] = GKD(A,numVals,varargin)
 % display      Prints partial history to console if set
 % v0            Initial vector for V
 % b             Block size
-% minRestart         number of vectors to maintain after restart
+% minRestart    number of vectors to maintain after restart
 % maxBasis      max number of basis vectors in V,U
 % numOld        number of +k vectors to keep during restart
-% maxII         max number of inner solver iterations
+% maxQMR         max number of inner solver iterations
 % seed          random seed
 % m             number of rows in A (if A is a function_handle)
 % n             number of cols in A (if A is a function_handle)
@@ -45,7 +45,7 @@ function [U,S,V,HIST,UD] = GKD(A,numVals,varargin)
 % minRestart        numVals+max(b,15)
 % maxBasis     max(minRestart+2*b,floor(1.3*minRestart))
 % numOld       1
-% maxII        0
+% maxQMR       0
 % seed         'shuffle' (sets rng based on current time)
 % P            1 (Identity matrix)
 
@@ -71,7 +71,7 @@ addParameter(p,'maxQMR',0);
 addParameter(p,'seed','shuffle');
 addParameter(p,'m',-1);
 addParameter(p,'n',-1);
-addParameter(p,'P',1);
+addParameter(p,'P',[]);
 addParameter(p,'user_data',[]);
 
 parse(p,A,numVals,varargin{:});
@@ -97,12 +97,17 @@ end
 
 %Default Parameters for minRestart and maxBasis
 if p.minRestart < p.numVals
-    p.minRestart = max(7,p.numVals+p.b);
+    p.minRestart = max(7,p.numVals+5);
 end
 
 if p.maxBasis < p.minRestart
-    p.maxBasis = max(15,p.numVals+3*p.b);
+    p.maxBasis = max([15,p.minRestart+2*p.b,floor(1.3*p.minRestart)]);
 end
+
+fprintf(strcat('Starting GKD searching for %d singular triplets with \n', ...
+    'a maximum basis of %d vectors and a restart size of %d vectors\n'), ...
+    p.numVals,p.maxBasis,p.minRestart);
+
 
 if isa(p.target_fn,'char')
     if strcmpi(p.target_fn,'prog_tol')
@@ -170,19 +175,20 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
         'b',p.b,'tol',p.tol,'rn',allrun);
     
     [index,p.user_data] = p.target_fn(solver_data,p.user_data);
-    
+
     u = U(:,1:k)*ur(:,index);
     v = V(:,1:k)*vr(:,index);
     s = sr(index);
     ru = p.A(u,transp) - v*diag(s);
     mvp = mvp + length(index);
-    allrun(index) = vecnorm(ru);
+    run = vecnorm(ru);
+    allrun(index) = run;
     
     if p.display
-        fprintf('Time: %7.3f Iter: %4d Matvecs: %4d Restarts: %4d Num Conv: %4d Min Unconverged Resid: %7.3e\n',...
-            toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol)));
+        fprintf('Time: %7.3f Iter: %4d Matvecs: %4d Restarts: %4d Num Conv: %4d Min Resid: %7.3e\n',...
+            toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))/normA);
     end
-    HIST = [HIST; toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))];
+    HIST = [HIST; toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))/normA];
     solver_data.rn = allrun;
     [done,p.numVals,p.user_data] = p.stop_fn(p.numVals,solver_data,p.user_data);
     
@@ -195,13 +201,13 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
     
     
     cb_size = size(ru,2);
-    if p.maxQMR > 0
+    if p.maxQMR > 0 || ~isempty(p.P)
         for j = 1:cb_size
             si = s(j);
             shift = si^2 - si*run(j);
             g = @(x) x - v*(v'*x);
             f = @(x,~) g(p.A((p.A(x,notransp)),transp)-shift*x);
-            [ru(:,j),iters,touch] = qmrs(f,si*ru(:,j),normA*p.tol,p.maxII,p.P,si^2,shift,touch);
+            [ru(:,j),iters,touch] = qmrs(f,si*ru(:,j),p.SIGMA,normA*p.tol,p.maxQMR,p.P,si^2,shift,touch);
             mvp = mvp+2*iters;
         end
     end
@@ -215,7 +221,7 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
     outerits = outerits+1;
     
     %% Restart/Reset procedure %%
-    if k >= p.maxBasis
+    if k >= p.maxBasis - p.b + 1
         vrold = vr(:,index(1:p.numOld));  %Used for restarting with GD+k
         restarts = restarts + 1;
         rc = 4*normA*eps*sqrt(restarts); %reset criteria

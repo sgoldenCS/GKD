@@ -1,4 +1,4 @@
-function [sol,numIts,touch] = qmrs(A,r,epsilon,maxiter,K,eigv0,shift,touch)                                                                                    
+function [sol,numIts,touch] = qmrs(A,r,target,epsilon,maxiter,K,eigv0,shift,touch)                                                                                    
 %% QMRS   Symmetric Quasi-Minimum-Residual (Solves A*t = -r)
 %
 % [t,k,hist] = QMRS(A,r,Etolerance,maxiter,K,eigv0,shift,hist)
@@ -31,7 +31,9 @@ ETolerance = norm(r)*0.1;
 g = r;
 
 %Preconditioning
-if isa(K,'cell')
+if isempty(K)
+    d = r;
+elseif isa(K,'cell')
     d = K{1}(K{2}(r));
 elseif isa(K,'function_handle')
     d = K(r);
@@ -133,15 +135,15 @@ while numIts < maxiter
             break;
         end
         
-        %{ 
-        Not really sure what this is for....
+        %{
+        %Not really sure what this is for....
         %looking for smallest
-        if eval_updated > eval_prev && target == 0
+        if eval_updated > eval_prev && strcmpi(target,'S')
             %disp('eval_updated > eval_prev');
             break;
 
         %looking for largest
-        elseif eval_updated < eval_prev && target == inf
+        elseif eval_updated < eval_prev && strcmpi(target,'L')
                 %disp(eval_updated < eval_prev');
                 break;
         
@@ -170,7 +172,9 @@ while numIts < maxiter
     if numIts < maxiter
         
         %Preconditioning
-        if isa(K,'cell')
+        if isempty(K)
+            d = r;
+        elseif isa(K,'cell')
             w = K{1}(K{2}(g));
         elseif isa(K,'function_handle')
             w = K(g);
