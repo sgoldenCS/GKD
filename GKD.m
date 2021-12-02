@@ -66,7 +66,7 @@ addParameter(p,'v0',[]);
 addParameter(p,'b',1); %block size
 addParameter(p,'maxBasis',-1);
 addParameter(p,'minRestart',-1);
-addParameter(p,'numOld',1);
+addParameter(p,'numOld',-1); %Should default to block size
 addParameter(p,'maxQMR',0);
 addParameter(p,'seed','shuffle');
 addParameter(p,'m',-1);
@@ -110,10 +110,14 @@ if p.maxBasis < p.minRestart
     p.maxBasis = max([15,p.minRestart+2*p.b,floor(1.3*p.minRestart)]);
 end
 
+%Restrict +k restarting to +b
+if p.numOld > p.b
+    error('+'+string(p.numOld)+' restarting is not available with block size '+string(p.b));
+end
+
 fprintf(strcat('Starting GKD searching for %d singular triplets with \n', ...
     'a maximum basis of %d vectors and a restart size of %d vectors\n'), ...
     p.numVals,p.maxBasis,p.minRestart);
-
 
 if isa(p.target_fn,'char')
     if strcmpi(p.target_fn,'prog_tol')
@@ -125,6 +129,8 @@ if isa(p.target_fn,'char')
     else
         error(string(p.target_fn)+' is not a known target function');
     end
+else
+    error('target_fn must be ''resid'' or ''prog_tol''');
 end
 
 if isa(p.stop_fn,'char')
@@ -149,7 +155,6 @@ touch = 1;          %Used for QMR Convergence Criterion
 rcf = 1;            %Reset criteria factor
 HIST = [];          %Convergence History 
 
-sr = zeros(p.maxBasis,1);
 allrun = inf(p.maxBasis,1);   %Storage for Residual Norms
 
 starttime = tic;
@@ -163,7 +168,6 @@ end
 [U(:,1:k),R(1:k,1:k)] = qr(p.A(V(:,1:k),notransp),0); mvp = mvp + k;
 
 while mvp < p.maxMV && toc(starttime) < p.maxTime
-    sr_prev = sr;
     [ur,sr,vr] = svd(R(1:k,1:k)); 
     sr = diag(sr);
     
@@ -171,7 +175,6 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
         normA = max(sr);
     end
     
-    %%%% It would be nice not to do this if possible %%%%
     %Reorder SVD results
     order = f_order(k,p.SIGMA,sr);
     ur = ur(:,order);
@@ -194,10 +197,12 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
     
     if p.display
         fprintf('Time: %7.3f Iter: %4d Matvecs: %4d Restarts: %4d Num Conv: %4d Min Resid: %7.3e\n',...
-            toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))/normA);
+            toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), ...
+            min(allrun(allrun > normA*p.tol))/normA);
     end
     HIST = [HIST; toc(starttime), outerits, mvp, restarts, ...
         length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))/normA];
+    
     solver_data.rn = allrun;
     [done,p.numVals,p.user_data] = p.stop_fn(p.numVals,solver_data,p.user_data);
     
@@ -213,12 +218,7 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
     if p.maxQMR > 0 || ~isempty(p.P)
         for j = 1:cb_size
             si = s(j);
-            %if si*run(j) < si^2 - sr_prev(index(j))^2
-                 shift = si^2 - si*run(j);
-            %else
-            %    shift = sr_prev(index(j))^2;
-            %end
-            %shift = si^2;
+            shift = si^2 - si*run(j);
             g = @(x) x - v*(v'*x);
             f = @(x,~) g(p.A(p.A(x,notransp),transp)-shift*x);
             [ru(:,j),iters,touch] = qmrs(f,si*ru(:,j),p.SIGMA,normA*p.tol,p.maxQMR,p.P,si^2,shift,touch);
@@ -235,13 +235,22 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
     outerits = outerits+1;
     
     %% Restart/Reset procedure %%
-    if k >= p.maxBasis - p.b + 1
-        vrold = vr(:,index(1:p.numOld));  %Used for restarting with GD+k
+    if k > p.maxBasis - p.b
+        %Get +k vectors
+        if p.numOld == -1
+            vrold = vr(:,index);
+        elseif p.numOld > length(index)
+            warning('Not enough +k restart vectors. Restarting with +'+string(length(index)));
+            vrold = vr(:,index);
+        else
+            vrold = vr(:,index(1:p.numOld));
+        end
+        
         restarts = restarts + 1;
         rc = 4*normA*eps*sqrt(restarts); %reset criteria
         if ~reset, [reset,newmvp] = checkReset(rc,rcf,allrun(index),p.A,u,s,v,notransp); end
         mvp = mvp + newmvp;
-        sr_prev = sr;
+        
         [ur,sr,vr] = svd(R(1:k,1:k));
         sr = diag(sr);
         
@@ -287,11 +296,15 @@ if sd.k > numVals
 end
 end
 
+%% Targeting Functions: 
+%       GKD will expand with as many vectors as elements in returned index
+%       In general, index should be no larger than the block size
+
 %% Target based on residual tolerance
-% Returns at most one block size of indices
-% Index will be empty if all ||r|| are below ||A||*tol and k >= numVals
+%   Returns at most one block size of indices
+%   Index will be empty if all ||r|| are below ||A||*tol and k >= numVals
 function [index,ud] = resid_target(sd,ud)
-r = sd.rn(1:sd.k);
+r = sd.rn(1:sd.numVals); %Change numVals to k if a consistent block size is desired
 index = find(r > sd.normA*sd.tol);
 if sd.k < sd.numVals && isempty(index)
     [~,index] = sort(r,'descend');
