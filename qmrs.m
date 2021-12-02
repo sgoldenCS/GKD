@@ -135,7 +135,7 @@ while numIts < maxiter
             break;
         end
         
-        %{
+        
         %Not really sure what this is for....
         %looking for smallest
         if eval_updated > eval_prev && strcmpi(target,'S')
@@ -152,7 +152,7 @@ while numIts < maxiter
                 %disp('abs(eigv0-eval_updated) > tau_init+eres_updated');
                 break;   
         end
-        %}
+        
         
         if numIts > 1 && eres_updated < ETolerance
             %disp('ETolerance met')
@@ -173,7 +173,7 @@ while numIts < maxiter
         
         %Preconditioning
         if isempty(K)
-            d = r;
+            w = g;
         elseif isa(K,'cell')
             w = K{1}(K{2}(g));
         elseif isa(K,'function_handle')

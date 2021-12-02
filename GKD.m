@@ -81,7 +81,13 @@ m = p.m; n = p.n;
 normA = p.normA;
 
 rng(p.seed);
-if m == -1 || n == -1, [m,n] = size(p.A); end
+if m == -1 || n == -1
+    if isa(p.A,'function_handle')
+        error('Using a Function Handle for A requires dimensions [m,n] as parameters');
+    else
+        [m,n] = size(p.A); 
+    end
+end
 transp = 'transp';
 notransp = 'notransp';
 
@@ -143,6 +149,7 @@ touch = 1;          %Used for QMR Convergence Criterion
 rcf = 1;            %Reset criteria factor
 HIST = [];          %Convergence History 
 
+sr = zeros(p.maxBasis,1);
 allrun = inf(p.maxBasis,1);   %Storage for Residual Norms
 
 starttime = tic;
@@ -156,7 +163,8 @@ end
 [U(:,1:k),R(1:k,1:k)] = qr(p.A(V(:,1:k),notransp),0); mvp = mvp + k;
 
 while mvp < p.maxMV && toc(starttime) < p.maxTime
-    [ur,sr,vr] = svd(R(1:k,1:k));
+    sr_prev = sr;
+    [ur,sr,vr] = svd(R(1:k,1:k)); 
     sr = diag(sr);
     
     if max(sr) > normA
@@ -188,7 +196,8 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
         fprintf('Time: %7.3f Iter: %4d Matvecs: %4d Restarts: %4d Num Conv: %4d Min Resid: %7.3e\n',...
             toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))/normA);
     end
-    HIST = [HIST; toc(starttime), outerits, mvp, restarts, length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))/normA];
+    HIST = [HIST; toc(starttime), outerits, mvp, restarts, ...
+        length(find(allrun < normA*p.tol)), min(allrun(allrun > normA*p.tol))/normA];
     solver_data.rn = allrun;
     [done,p.numVals,p.user_data] = p.stop_fn(p.numVals,solver_data,p.user_data);
     
@@ -204,9 +213,14 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
     if p.maxQMR > 0 || ~isempty(p.P)
         for j = 1:cb_size
             si = s(j);
-            shift = si^2 - si*run(j);
+            %if si*run(j) < si^2 - sr_prev(index(j))^2
+                 shift = si^2 - si*run(j);
+            %else
+            %    shift = sr_prev(index(j))^2;
+            %end
+            %shift = si^2;
             g = @(x) x - v*(v'*x);
-            f = @(x,~) g(p.A((p.A(x,notransp)),transp)-shift*x);
+            f = @(x,~) g(p.A(p.A(x,notransp),transp)-shift*x);
             [ru(:,j),iters,touch] = qmrs(f,si*ru(:,j),p.SIGMA,normA*p.tol,p.maxQMR,p.P,si^2,shift,touch);
             mvp = mvp+2*iters;
         end
@@ -227,6 +241,7 @@ while mvp < p.maxMV && toc(starttime) < p.maxTime
         rc = 4*normA*eps*sqrt(restarts); %reset criteria
         if ~reset, [reset,newmvp] = checkReset(rc,rcf,allrun(index),p.A,u,s,v,notransp); end
         mvp = mvp + newmvp;
+        sr_prev = sr;
         [ur,sr,vr] = svd(R(1:k,1:k));
         sr = diag(sr);
         
