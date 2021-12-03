@@ -66,7 +66,7 @@ addParameter(p,'v0',[]);
 addParameter(p,'b',1); %block size
 addParameter(p,'maxBasis',-1);
 addParameter(p,'minRestart',-1);
-addParameter(p,'numOld',-1); %Should default to block size
+addParameter(p,'numOld',-1);
 addParameter(p,'maxQMR',0);
 addParameter(p,'seed','shuffle');
 addParameter(p,'m',-1);
@@ -107,17 +107,13 @@ if p.minRestart < p.numVals
 end
 
 if p.maxBasis < p.minRestart
-    p.maxBasis = max([15,p.minRestart+2*p.b,floor(1.3*p.minRestart)]);
+    p.maxBasis = max([15,p.minRestart+4*p.b,floor(1.3*p.minRestart)]);
 end
 
 %Restrict +k restarting to +b
 if p.numOld > p.b
     error('+'+string(p.numOld)+' restarting is not available with block size '+string(p.b));
 end
-
-fprintf(strcat('Starting GKD searching for %d singular triplets with \n', ...
-    'a maximum basis of %d vectors and a restart size of %d vectors\n'), ...
-    p.numVals,p.maxBasis,p.minRestart);
 
 if isa(p.target_fn,'char')
     if strcmpi(p.target_fn,'prog_tol')
