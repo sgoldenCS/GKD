@@ -1,4 +1,4 @@
-function [Qtilde,R] = restartQ(u,s,v,index,minRS,yold)
+function [Qtilde,R] = restartU(u,s,v,index,minRS,yold)
 
 index1 = index(1:minRS);
 index2 = index(minRS+1:end);
